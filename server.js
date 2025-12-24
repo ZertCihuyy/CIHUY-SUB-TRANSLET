@@ -8,190 +8,153 @@ app.use(cors());
 
 // --- KONFIGURASI ---
 const PORT = process.env.PORT || 3000;
-const MAX_CHARS = 1700; // Dikurangi sedikit untuk safety margin
+const MAX_CHARS = 2000; // Kapasitas Chunk
 const DELIMITER = " ||| ";
 const SPLIT_REGEX = /\s*\|\|\|\s*/;
-const MAX_LOG_SIZE = 100;
+const MAX_LOG_SIZE = 100; // Batas simpan log
 
-// --- USER & SOCIAL INFO (Ubah Di Sini) ---
+// --- GLOBAL VARIABLES (Untuk Statistik) ---
+let requestLogs = [];
+let totalTranslatedCount = 0;
+
+// --- INFO SOSIAL MEDIA ---
 const SOCIALS = {
     github: "https://github.com/ZertCihuyy",
     tiktok: "https://tiktok.com/@zertcihuy",
-    support: "https://sociabuzz.com/zerty_/tribe", // Atau Saweria/Ko-fi
+    support: "https://sociabuzz.com/zerty_/tribe",
     instagram: "https://instagram.com/zrertcihuy"
 };
 
-// In-Memory Storage
-let requestLogs = [];
+// --- HELPER FUNCTIONS ---
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Daftar Bahasa
-const LANGUAGES = {
-  "id": "Indonesian", "en": "English", "ja": "Japanese", "ko": "Korean",
-  "ms": "Malay", "zh-CN": "Chinese (S)", "ar": "Arabic", "es": "Spanish",
-  "fr": "French", "ru": "Russian", "de": "German", "th": "Thai", "vi": "Vietnamese"
-};
-
-// --- SYSTEM LOGGER ---
 const systemLog = (type, msg, details = null) => {
     const logEntry = {
-        timestamp: new Date().toISOString(),
+        time: new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }),
         type: type,
         message: msg,
         details: details
     };
+    // Masukkan ke array paling atas
     requestLogs.unshift(logEntry);
+    // Hapus log lama jika kepenuhan
     if (requestLogs.length > MAX_LOG_SIZE) requestLogs.pop();
 };
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// --- ROUTE 1: FRONTEND (UI BARU) ---
+// --- ROUTE 1: FRONTEND (UI) ---
 app.get("/", (req, res) => {
-    let langOptions = Object.entries(LANGUAGES).map(([code, name]) => 
-        `<option value="${code}" ${code === 'id' ? 'selected' : ''}>${name} (${code})</option>`
+    // Daftar Bahasa (Termasuk Jawa)
+    const langs = {
+        "id": "Indonesia", 
+        "jw": "Jawa", // FIXXED
+        "su": "Sunda",
+        "en": "Inggris", 
+        "ms": "Melayu", 
+        "ko": "Korea", 
+        "ar": "Arab", 
+        "es": "Spanyol", 
+        "fr": "Prancis", 
+        "de": "Jerman", 
+        "ru": "Rusia", 
+        "th": "Thailand", 
+        "vi": "Vietnam"
+    };
+    
+    let langOptions = Object.entries(langs).map(([code, name]) => 
+        `<option value="${code}">${name}</option>`
     ).join('');
 
     const htmlContent = `
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="id">
     <head>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>VTT Subtitle Translator</title>
+        <title>CIHUY-SUB | VTT Tools</title>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
-            :root { --primary: #00f2ff; --bg: #050505; --card: #111; --text: #fff; }
-            body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+            body { 
+                background: url('https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=2070&auto=format&fit=crop') no-repeat center center fixed; 
+                background-size: cover; margin: 0; min-height: 100vh; font-family: 'Segoe UI', sans-serif;
+                display: flex; align-items: center; justify-content: center; color: #fff;
+            }
+            .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: -1; }
+            .box { 
+                background: rgba(30, 30, 30, 0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+                padding: 40px; border-radius: 20px; width: 90%; max-width: 480px; 
+                border: 1px solid rgba(255, 255, 255, 0.1); text-align: center;
+                box-shadow: 0 0 50px rgba(0, 242, 255, 0.1);
+            }
+            h2 { margin: 0; color: #fff; font-size: 2.5rem; letter-spacing: 1px; font-weight: 800; text-transform: uppercase; }
+            h2 span { color: #00f2ff; }
+            p { color: #aaa; margin-top: 5px; font-size: 0.95rem; }
             
-            .container { background: rgba(20, 20, 20, 0.9); backdrop-filter: blur(10px); padding: 2rem; border: 1px solid #333; border-radius: 15px; width: 90%; max-width: 700px; box-shadow: 0 0 20px rgba(0, 242, 255, 0.1); }
+            .input-wrapper { text-align: left; margin-top: 25px; }
+            label { font-size: 0.85rem; color: #ddd; font-weight: 600; margin-left: 5px; }
             
-            h2 { text-align: center; margin-bottom: 5px; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
-            p.subtitle { text-align: center; color: #888; margin-bottom: 2rem; font-size: 0.9rem; }
+            input, select { 
+                width: 100%; padding: 14px; margin-top: 8px; background: rgba(0,0,0,0.3); 
+                border: 1px solid #444; color: #fff; border-radius: 12px; box-sizing: border-box; 
+                font-size: 1rem; transition: 0.3s;
+            }
+            input:focus, select:focus { border-color: #00f2ff; outline: none; background: rgba(0,0,0,0.5); }
             
-            .input-group { margin-bottom: 15px; }
-            label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; color: #ccc; }
-            input, select { width: 100%; padding: 12px; background: #222; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; outline: none; transition: 0.3s; }
-            input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 5px rgba(0, 242, 255, 0.3); }
+            button { 
+                width: 100%; padding: 16px; margin-top: 25px;
+                background: linear-gradient(135deg, #00f2ff, #00a8ff); 
+                color: #000; font-weight: bold; cursor: pointer; border: none; 
+                border-radius: 12px; font-size: 1.1rem; transition: 0.2s; 
+                box-shadow: 0 5px 15px rgba(0, 242, 255, 0.2);
+            }
+            button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 242, 255, 0.4); }
             
-            button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 1rem; }
-            .btn-primary { background: var(--primary); color: #000; margin-top: 10px; }
-            .btn-primary:hover { background: #00c8d4; transform: translateY(-2px); }
-            .btn-secondary { background: #333; color: #fff; margin-top: 10px; display: inline-block; width: 48%; }
-            .btn-secondary:hover { background: #444; }
+            .footer { margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
+            .credits { font-size: 0.75rem; color: #666; line-height: 1.6; }
+            .credits b { color: #888; }
 
-            /* Output Area */
-            .output-area { margin-top: 20px; display: none; border-top: 1px solid #333; padding-top: 20px; }
-            textarea { width: 100%; height: 250px; background: #000; border: 1px solid #333; color: #0f0; padding: 10px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 0.85rem; resize: vertical; box-sizing: border-box; }
-            
-            /* Footer Socials */
-            .footer { margin-top: 30px; text-align: center; padding-top: 20px; border-top: 1px solid #222; }
-            .social-links { margin-top: 10px; display: flex; justify-content: center; gap: 15px; }
-            .social-links a { color: #888; font-size: 1.5rem; transition: 0.3s; text-decoration: none; }
-            .social-links a:hover { color: var(--primary); transform: scale(1.1); }
-            
-            /* Loading Spinner */
-            .loader { display: none; margin: 10px auto; border: 4px solid #333; border-top: 4px solid var(--primary); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            .socials { margin-top: 15px; display: flex; justify-content: center; gap: 15px; }
+            .socials a { color: #888; font-size: 1.3rem; transition: 0.3s; }
+            .socials a:hover { color: #00f2ff; transform: scale(1.1); }
         </style>
     </head>
     <body>
-
-        <div class="container">
-            <h2><i class="fas fa-language"></i> VTT Translator</h2>
-            <p class="subtitle">AI Powered Subtitle Translation Engine</p>
-
-            <div class="input-group">
-                <label>VTT File URL</label>
-                <input type="text" id="urlInput" placeholder="https://example.com/sub.vtt">
+        <div class="overlay"></div>
+        <div class="box">
+            <h2>CIHUY<span>-SUB</span></h2>
+            <p>Jagonya Translate Subtitle Ngebut ⚡</p>
+            
+            <div class="input-wrapper">
+                <label>Link File VTT</label>
+                <input type="text" id="urlInput" placeholder="Tempel link VTT di sini...">
             </div>
 
-            <div class="input-group">
-                <label>Target Language</label>
+            <div class="input-wrapper">
+                <label>Mau Bahasa Apa?</label>
                 <select id="langInput">${langOptions}</select>
             </div>
 
-            <button class="btn-primary" id="processBtn" onclick="processTranslation()">
-                <span id="btnText">TRANSLATE NOW</span>
-                <div class="loader" id="btnLoader"></div>
-            </button>
-
-            <div class="output-area" id="outputArea">
-                <label>Result Preview</label>
-                <textarea id="resultBox" readonly placeholder="Translation will appear here..."></textarea>
-                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                    <button class="btn-secondary" onclick="copyText()"><i class="fas fa-copy"></i> Copy Text</button>
-                    <button class="btn-secondary" onclick="downloadText()"><i class="fas fa-download"></i> Download .vtt</button>
-                </div>
-            </div>
+            <button onclick="start()">GAS TERJEMAHKAN 🚀</button>
 
             <div class="footer">
-                <small>Developed by <b>ZertCihuy</b></small>
-                <div class="social-links">
-                    <a href="${SOCIALS.github}" target="_blank" title="GitHub"><i class="fab fa-github"></i></a>
-                    <a href="${SOCIALS.instagram}" target="_blank" title="Instagram"><i class="fab fa-instagram"></i></a>
-                    <a href="${SOCIALS.tiktok}" target="_blank" title="TikTok"><i class="fab fa-tiktok"></i></a>
-                    <a href="${SOCIALS.support}" target="_blank" title="Support Me"><i class="fas fa-coffee"></i></a>
+                <div class="credits">
+                    Powered by <b>google-translate-api-x</b><br>
+                    Developed by <b style="color:#00f2ff">ZertCihuy</b>
+                </div>
+                <div class="socials">
+                    <a href="${SOCIALS.github}" target="_blank"><i class="fab fa-github"></i></a>
+                    <a href="${SOCIALS.tiktok}" target="_blank"><i class="fab fa-tiktok"></i></a>
+                    <a href="${SOCIALS.instagram}" target="_blank"><i class="fab fa-instagram"></i></a>
+                    <a href="${SOCIALS.support}" target="_blank"><i class="fas fa-coffee"></i></a>
                 </div>
             </div>
         </div>
-
         <script>
-            let currentLang = 'en';
-
-            async function processTranslation() {
+            function start() {
                 const url = document.getElementById('urlInput').value.trim();
                 const lang = document.getElementById('langInput').value;
-                currentLang = lang;
-
-                if(!url) return alert("Please enter a valid VTT URL");
-
-                // UI State: Loading
-                const btn = document.getElementById('processBtn');
-                const btnText = document.getElementById('btnText');
-                const loader = document.getElementById('btnLoader');
-                const outputArea = document.getElementById('outputArea');
+                if(!url) return alert("Eits, link VTT-nya belum diisi bang!");
                 
-                btn.disabled = true;
-                btnText.style.display = 'none';
-                loader.style.display = 'block';
-                outputArea.style.display = 'none';
-
-                try {
-                    // Fetch ke server kita (bukan open window baru)
-                    const response = await fetch(\`/get-vtt?url=\${encodeURIComponent(url)}&lang=\${lang}\`);
-                    const data = await response.json();
-
-                    if (!data.success) throw new Error(data.message || "Failed to translate");
-
-                    // Tampilkan Hasil
-                    document.getElementById('resultBox').value = data.content;
-                    outputArea.style.display = 'block';
-                    
-                } catch (err) {
-                    alert("Error: " + err.message);
-                } finally {
-                    // Reset UI
-                    btn.disabled = false;
-                    btnText.style.display = 'inline';
-                    loader.style.display = 'none';
-                }
-            }
-
-            function copyText() {
-                const copyText = document.getElementById("resultBox");
-                copyText.select();
-                copyText.setSelectionRange(0, 99999); 
-                navigator.clipboard.writeText(copyText.value);
-                alert("Copied to clipboard!");
-            }
-
-            function downloadText() {
-                const text = document.getElementById("resultBox").value;
-                const blob = new Blob([text], { type: "text/vtt" });
-                const anchor = document.createElement("a");
-                anchor.href = URL.createObjectURL(blob);
-                anchor.download = \`translated_\${currentLang}.vtt\`;
-                anchor.click();
-                URL.revokeObjectURL(anchor.href);
+                // Langsung gas redirect
+                window.location.href = \`/get-vtt?url=\${encodeURIComponent(url)}&lang=\${lang}\`;
             }
         </script>
     </body>
@@ -199,31 +162,79 @@ app.get("/", (req, res) => {
     res.send(htmlContent);
 });
 
-// --- ROUTE 2: API PROCESSOR (Modifikasi: Return JSON, Bukan File Stream) ---
+// --- ROUTE KHUSUS (SESUAI REQUEST) ---
+
+// 1. /log -> Melihat riwayat request
+app.get("/log", (req, res) => {
+    res.json({
+        total_logs: requestLogs.length,
+        logs: requestLogs
+    });
+});
+
+// 2. /status -> Cek kesehatan server
+app.get("/status", (req, res) => {
+    const mem = process.memoryUsage();
+    res.json({
+        status: "Online 🟢",
+        uptime: Math.floor(process.uptime()) + " detik",
+        memory_usage: Math.round(mem.rss / 1024 / 1024) + " MB",
+        timestamp: new Date().toISOString()
+    });
+});
+
+// 3. /Jumlah-terjema -> Total request yang sukses
+app.get("/jumlah-terjemah", (req, res) => {
+    res.json({
+        total_terjemahan_sukses: totalTranslatedCount
+    });
+});
+// Alias jika user typo sesuai request
+app.get("/Jumlah-terjema", (req, res) => {
+    res.json({ total_terjemahan_sukses: totalTranslatedCount });
+});
+
+// 4. /power -> Nama Paket
+app.get("/power", (req, res) => {
+    res.send("google-translate-api-x");
+});
+
+// 5. /developer -> Nama Developer
+app.get("/developer", (req, res) => {
+    res.send("ZertCihuy");
+});
+
+
+// --- ROUTE 2: BACKEND PROCESSOR (Main VTT Logic) ---
 app.get("/get-vtt", async (req, res) => {
-    const { url, lang = "en" } = req.query;
-    const reqId = Date.now();
+    const { url, lang = "id" } = req.query;
 
-    if (!url) return res.status(400).json({ success: false, message: "URL Required" });
+    if (!url) return res.status(400).send("Waduh, parameter URL-nya ketinggalan!");
 
-    systemLog("INFO", `Processing request`, { id: reqId, url, target: lang });
+    // Catat Log
+    systemLog("INFO", "New Request", { url, lang });
+
+    // Setup Header untuk Streaming Text
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
 
     try {
-        // 1. Fetch File
+        // 1. Fetch Full Content
         const response = await axios.get(url, { 
-            timeout: 30000,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 30000 
         });
-        
+
         const lines = response.data.split(/\r?\n/);
+        
+        // --- LOGIKA CHUNKING ---
         let chunks = [];
         let currentChunkText = "";
         let currentChunkIndices = [];
 
-        // 2. Chunking Logic
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            // Deteksi dialog (Bukan timestamp, bukan nomor, bukan header)
+            // Cek apakah ini dialog (bukan timestamp/header)
             const isDialog = line && !line.startsWith("WEBVTT") && !line.includes("-->") && isNaN(line) && !line.startsWith("NOTE");
 
             if (isDialog) {
@@ -237,49 +248,79 @@ app.get("/get-vtt", async (req, res) => {
                 }
             }
         }
-        if (currentChunkText) chunks.push({ text: currentChunkText, indices: [...currentChunkIndices] });
+        // Push sisa chunk terakhir
+        if (currentChunkText) {
+            chunks.push({ text: currentChunkText, indices: [...currentChunkIndices] });
+        }
 
-        // 3. Translate Logic
+        // --- PROSES TRANSLATE & STREAMING ---
+        let lastPrintedIndex = -1;
+
+        // Kirim Header VTT dulu
+        for(let i=0; i<lines.length; i++) {
+            if(lines[i].startsWith("WEBVTT") || lines[i].startsWith("NOTE")) {
+                res.write(lines[i] + "\n");
+                lastPrintedIndex = i;
+            } else {
+                break; // Stop pas ketemu timestamp
+            }
+        }
+
+        // Loop Translate per Chunk
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
+
             try {
+                // Translate
                 const resG = await translate(chunk.text, { to: lang });
                 const translatedParts = resG.text.split(SPLIT_REGEX);
 
+                // Update array baris asli
                 if (translatedParts.length === chunk.indices.length) {
                     translatedParts.forEach((text, idx) => {
-                        lines[chunk.indices[idx]] = text.trim(); // Replace baris asli dengan terjemahan
+                        lines[chunk.indices[idx]] = text.trim();
                     });
                 }
             } catch (err) {
-                systemLog("WARN", `Chunk translation failed`, { chunkIndex: i });
+                systemLog("WARN", "Translate Fail", { msg: err.message });
             }
-            await delay(300); // Anti-ban delay
+
+            // --- FLUSH KE BROWSER ---
+            const maxIndexInChunk = chunk.indices[chunk.indices.length - 1];
+            
+            for (let k = lastPrintedIndex + 1; k <= maxIndexInChunk; k++) {
+                if (lines[k] !== undefined) {
+                    res.write(lines[k] + "\n");
+                }
+            }
+            lastPrintedIndex = maxIndexInChunk;
+
+            // Delay biar smooth & aman
+            const randomDelay = Math.floor(Math.random() * 500) + 200;
+            await delay(randomDelay);
         }
 
-        systemLog("SUCCESS", `Finished`, { id: reqId });
+        // Kirim sisa baris footer (kalo ada)
+        for (let k = lastPrintedIndex + 1; k < lines.length; k++) {
+            if (lines[k] !== undefined) res.write(lines[k] + "\n");
+        }
 
-        // 4. Return JSON (Agar tidak auto download di browser)
-        res.json({
-            success: true,
-            lang: lang,
-            content: lines.join("\n")
-        });
+        // Sukses, tambah counter
+        totalTranslatedCount++;
+        systemLog("SUCCESS", "Done", { lang });
+        res.end(); 
 
     } catch (error) {
-        systemLog("ERROR", "Fatal Error", { error: error.message });
-        res.status(500).json({ success: false, message: error.message });
+        systemLog("ERROR", "Fatal", { msg: error.message });
+        res.write("\n\nERROR: Gagal memproses, cek URL-nya bang. " + error.message);
+        res.end();
     }
 });
 
-// --- ROUTE 3: STATUS ---
-app.get("/status", (req, res) => {
-    res.json({ status: "active", logs: requestLogs.length, mem: process.memoryUsage().rss });
-});
-
 app.listen(PORT, () => {
+    // Membersihkan layar terminal
     process.stdout.write('\x1Bc'); 
-    console.log(`Server running on port ${PORT}`);
+    console.log(`run in port ${PORT}`);
 });
 
 module.exports = app;
