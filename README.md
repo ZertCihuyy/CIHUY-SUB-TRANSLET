@@ -1,125 +1,250 @@
+# CIHUY-SUB-TRANSLET
 
+CIHUY-SUB-TRANSLET adalah server berbasis **Node.js + Express** yang digunakan untuk menerjemahkan subtitle **VTT** secara otomatis menggunakan **google-translate-api-x**, dengan sistem **chunking** dan **streaming real-time** ke browser.
 
----
-
-# 🌐 CIHUY-SUB-TRANSLET
-
-> **Automated VTT Subtitle Translator Server**
-
-**[English](https://www.google.com/search?q=%23-english-version)** | **[Bahasa Indonesia](https://www.google.com/search?q=%23-versi-bahasa-indonesia)**
+Project ini dibuat untuk memudahkan proses translate subtitle tanpa merusak timestamp.
 
 ---
 
-## 🇺🇸 English Version
+## ✨ Fitur Utama
 
-CIHUY-SUB-TRANSLET is a **Node.js + Express** powered server designed to automatically translate **VTT** subtitles using the **google-translate-api-x** engine. It features a smart chunking system and real-time streaming to ensure fast, reliable translation without breaking timestamps.
+- 🔥 Translate subtitle VTT otomatis
+- ⚡ Streaming hasil terjemahan secara real-time
+- 🧩 Sistem chunking (aman dari limit Google Translate)
+- 🕒 Timestamp subtitle tetap utuh
+- 📊 Statistik & monitoring server
+- 🌐 UI web langsung dari server
+- 📝 Log request (max 100 log terakhir)
 
-### ✨ Key Features
+---
 
-* **Auto-Translate:** Seamless VTT subtitle conversion.
-* **Real-time Streaming:** Watch the translation results as they process.
-* **Smart Chunking:** Bypasses Google Translate limits by splitting text intelligently.
-* **Timestamp Integrity:** Ensures subtitle timing remains 100% accurate.
-* **Monitoring:** Built-in server stats, uptime, and request logging.
-* **Built-in UI:** Access the translation tool directly via your browser.
+## 🧑‍💻 Developer
 
-### 🛠 Tech Stack
+- **Nama**: ZertCihuy  
+- **GitHub**: https://github.com/ZertCihuyy  
 
-* **Backend:** Node.js, Express.js
-* **Request:** Axios, CORS
-* **Engine:** `google-translate-api-x`
-* **Frontend:** Vanilla HTML + CSS (Inline)
+---
 
-### 🚀 Getting Started
+## 🧰 Teknologi
 
-1. **Install Dependencies**
+- Node.js
+- Express.js
+- Axios
+- CORS
+- google-translate-api-x
+- HTML + CSS (Inline UI)
+
+---
+
+## ⚙️ Konfigurasi
+
+```js
+PORT = 3000
+MAX_CHARS = 2000
+DELIMITER = " ||| "
+MAX_LOG_SIZE = 100
+````
+
+---
+
+## 🚀 Cara Menjalankan
+
+### 1. Install Dependency
+
 ```bash
 npm install express cors axios google-translate-api-x
-
 ```
 
+### 2. Jalankan Server
 
-2. **Run the Server**
 ```bash
 node server.js
-
 ```
 
+### 3. Buka Browser
 
-3. **Access Web UI**
-Open `http://localhost:3000` in your browser.
-
----
-
-## 🇮🇩 Versi Bahasa Indonesia
-
-CIHUY-SUB-TRANSLET adalah server berbasis **Node.js + Express** yang digunakan untuk menerjemahkan subtitle **VTT** secara otomatis menggunakan **google-translate-api-x**. Dilengkapi dengan sistem **chunking** dan **streaming real-time** ke browser untuk menjamin kecepatan tanpa merusak timestamp.
-
-### ✨ Fitur Utama
-
-* 🔥 **Translate Otomatis:** Konversi VTT instan.
-* ⚡ **Streaming Real-time:** Hasil terjemahan muncul langsung saat diproses.
-* 🧩 **Sistem Chunking:** Aman dari limit (rate-limit) Google Translate.
-* 🕒 **Presisi Timestamp:** Waktu subtitle tetap utuh dan akurat.
-* 📊 **Monitoring:** Statistik server, uptime, dan log request tersedia.
-* 🌐 **Web UI:** Antarmuka web langsung siap pakai dari server.
-
----
-
-## ⚙️ Configuration & API Reference
-
-### Server Config
-
-```javascript
-PORT = 3000          // Default Server Port
-MAX_CHARS = 2000     // Characters per chunk
-DELIMITER = " ||| "  // Translation separator
-MAX_LOG_SIZE = 100   // History limit
-
+```text
+http://localhost:3000
 ```
 
-### 🛣 API Endpoints
+---
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/get-vtt` | `GET` | **Main Engine.** Params: `url` (VTT link) & `lang` (target). |
-| `/status` | `GET` | Check server health, uptime, and memory. |
-| `/log` | `GET` | View the last 100 request activities. |
-| `/jumlah-terjemah` | `GET` | Get total successful translation count. |
-| `/developer` | `GET` | Developer information. |
+## 🌐 Route Frontend
 
-### 🌍 Supported Languages
+### GET `/`
 
-Indonesian (`id`), Javanese (`jw`), Sundanese (`su`), English (`en`), Malay (`ms`), Korean (`ko`), Arabic (`ar`), Spanish (`es`), French (`fr`), German (`de`), Russian (`ru`), Thai (`th`), Vietnamese (`vi`).
+Menampilkan UI web untuk:
+
+* Input link subtitle VTT
+* Pilih bahasa tujuan
+* Proses translate otomatis
+
+Bahasa yang didukung:
+
+* Indonesia (`id`)
+* Jawa (`jw`)
+* Sunda (`su`)
+* Inggris (`en`)
+* Melayu (`ms`)
+* Korea (`ko`)
+* Arab (`ar`)
+* Spanyol (`es`)
+* Prancis (`fr`)
+* Jerman (`de`)
+* Rusia (`ru`)
+* Thailand (`th`)
+* Vietnam (`vi`)
 
 ---
 
-## 🧠 Workflow Logic
+## 🔌 Route API & Informasi
 
-1. **Fetch:** Downloads VTT via Axios.
-2. **Filter:** Separates timestamps from dialogue.
-3. **Chunk:** Groups text (max 2000 chars) for API efficiency.
-4. **Translate:** Processes chunks via `google-translate-api-x`.
-5. **Re-sync:** Matches translated text back to original timestamps.
-6. **Stream:** Pushes data to browser with a random delay (200–700ms) to mimic natural flow.
+### GET `/log`
 
----
+Menampilkan log request terakhir.
 
-## ⚠️ Limitations & Security
+**Response**
 
-* **Privacy:** No subtitles are stored on the server.
-* **Auth:** No authentication (public access).
-* **Dependency:** Highly dependent on Google Translate's availability.
-* **Scale:** Best for personal tools or community projects, not high-traffic commercial use.
+```json
+{
+  "total_logs": 10,
+  "logs": []
+}
+```
 
 ---
 
-## 🧑‍💻 Developer & Support
+### GET `/status`
 
-* **Lead Dev:** ZertCihuy
-* **GitHub:** [ZertCihuyy](https://github.com/ZertCihuyy)
-* **Support:** [SociaBuzz Tribe](https://sociabuzz.com/zerty_/tribe)
+Cek status server.
+
+**Response**
+
+```json
+{
+  "status": "Online 🟢",
+  "uptime": "120 detik",
+  "memory_usage": "45 MB",
+  "timestamp": "2026-02-08T00:00:00Z"
+}
+```
 
 ---
 
-**Would you like me to help you write the code for the `/status` or `/log` endpoint to make it even more robust?**
+### GET `/jumlah-terjemah`
+
+Menampilkan total subtitle yang berhasil diterjemahkan.
+
+```json
+{
+  "total_terjemahan_sukses": 25
+}
+```
+
+Alias:
+
+* `/Jumlah-terjema`
+
+---
+
+### GET `/power`
+
+Menampilkan engine translator.
+
+```
+google-translate-api-x
+```
+
+---
+
+### GET `/developer`
+
+Menampilkan nama developer.
+
+```
+ZertCihuy
+```
+
+---
+
+## 🧠 Route Utama (Translate Engine)
+
+### GET `/get-vtt`
+
+#### Parameter
+
+| Nama | Wajib | Deskripsi                     |
+| ---- | ----- | ----------------------------- |
+| url  | ✅     | Link file `.vtt`              |
+| lang | ❌     | Bahasa tujuan (default: `id`) |
+
+#### Contoh Request
+
+```
+/get-vtt?url=https://example.com/sub.vtt&lang=id
+```
+
+---
+
+## 🔄 Alur Proses Translate
+
+1. Fetch file VTT via Axios
+2. Pisahkan per baris
+3. Deteksi dialog (tanpa timestamp)
+4. Gabungkan dialog ke chunk (max 2000 karakter)
+5. Translate per chunk
+6. Pisahkan hasil translate
+7. Kembalikan ke baris asli
+8. Streaming hasil ke browser
+9. Delay random (200–700 ms)
+10. Update counter sukses
+
+---
+
+## ⚠️ Error Handling
+
+* Semua error dicatat ke sistem log
+* Output error tetap dikirim ke browser
+* Timeout fetch: **30 detik**
+
+---
+
+## 🔐 Keamanan & Batasan
+
+* Tidak menyimpan subtitle
+* Tidak ada autentikasi
+* Bergantung pada Google Translate
+* Tidak disarankan untuk traffic besar
+
+---
+
+## ☕ Support
+
+Jika project ini membantu kamu, bisa support di:
+
+* [https://sociabuzz.com/zerty_/tribe](https://sociabuzz.com/zerty_/tribe)
+
+---
+
+## 📜 Lisensi & Kredit
+
+Powered by:
+**google-translate-api-x**
+
+Developed by:
+**ZertCihuy**
+
+---
+
+## ⭐ Catatan
+
+Project ini cocok untuk:
+
+* Subtitle komunitas
+* Tools personal
+* Eksperimen subtitle streaming
+
+Tidak disarankan untuk penggunaan komersial skala besar.
+
+---
+
