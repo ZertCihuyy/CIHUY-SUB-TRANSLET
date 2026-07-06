@@ -267,4 +267,177 @@ router.get("/get-vtt", async (req, res) => {
   }
 });
 
+// Main handler for ASS translation requests
+router.get("/get-ass", async (req, res) => {
+  const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const { url, lang = "id" } = req.query;
+
+  // Validate required parameter
+  if (!url) {
+    appLog.error("Missing 'url' query parameter in /get-ass request", {
+      query: req.query,
+    });
+    return res
+      .status(400)
+      .json({ error: "Missing 'url' query parameter", requestId });
+  }
+
+  // Append log
+  appLog.info("Received /get-ass request", {
+    url,
+    lang,
+    ip: req.ip,
+    userAgent: req.get("User-Agent"),
+    requestId,
+  });
+
+  // Setup res headers for streaming response
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Transfer-Encoding", "chunked");
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36",
+      },
+      timeout: 30000,
+    });
+
+    const chunks = [];
+    let currentChunkText = "";
+    let currentChunkIndices = [];
+
+    const contentLines = response.data.split(/\r?\n/);
+    const textPartsMap = {};
+
+    for (let i = 0; i < contentLines.length; i++) {
+      const line = contentLines[i].trim();
+
+      if (line.startsWith("Dialogue:")) {
+        let commaCount = 0;
+        let textStartIndex = -1;
+        for (let j = 0; j < line.length; j++) {
+          if (line[j] === ',') {
+            commaCount++;
+            if (commaCount === 9) {
+              textStartIndex = j + 1;
+              break;
+            }
+          }
+        }
+
+        if (textStartIndex !== -1) {
+          const prefix = line.substring(0, textStartIndex);
+          let textToTranslate = line.substring(textStartIndex);
+          
+          textPartsMap[i] = prefix;
+
+          if (
+            (currentChunkText + WEBVTT_DELIMITER + textToTranslate).length > WEBVTT_MAX_CHARS
+          ) {
+            chunks.push({
+              text: currentChunkText,
+              indices: [...currentChunkIndices],
+            });
+
+            currentChunkText = textToTranslate;
+            currentChunkIndices = [i];
+          } else {
+            currentChunkText += (currentChunkText ? WEBVTT_DELIMITER : "") + textToTranslate;
+            currentChunkIndices.push(i);
+          }
+        }
+      }
+    }
+
+    if (currentChunkText) {
+      chunks.push({
+        text: currentChunkText,
+        indices: [...currentChunkIndices],
+      });
+    }
+
+    let lastPrintedIndex = -1;
+    let firstDialogueIndex = contentLines.findIndex(line => line.trim().startsWith("Dialogue:"));
+    if (firstDialogueIndex === -1) firstDialogueIndex = contentLines.length;
+
+    for (let i = 0; i < firstDialogueIndex; i++) {
+      res.write(contentLines[i] + "\n");
+      lastPrintedIndex = i;
+    }
+
+    for (const chunk of chunks) {
+      try {
+        const responseTranslate = await translate(chunk.text, {
+          to: lang,
+          client: "gtx",
+          forceTo: true,
+        });
+        const translatedParts =
+          responseTranslate.text.split(WEBVTT_SPLIT_REGEX);
+
+        translatedParts.forEach((part, idx) => {
+          const lineIdx = chunk.indices[idx];
+          contentLines[lineIdx] = textPartsMap[lineIdx] + part;
+        });
+      } catch (err) {
+        appLog.error("Translation error for chunk in /get-ass", {
+          msg: err.message,
+          chunkText: chunk.text,
+          indices: chunk.indices,
+          requestId,
+        });
+        console.error(`Translation error in request ${requestId}:`, err);
+      }
+
+      const maxIndexToPrint = chunk.indices[chunk.indices.length - 1];
+
+      for (let i = lastPrintedIndex + 1; i <= maxIndexToPrint; i++) {
+        if (contentLines[i] === undefined) {
+          continue;
+        }
+        res.write(contentLines[i] + "\n");
+      }
+      lastPrintedIndex = maxIndexToPrint;
+    }
+
+    for (let i = lastPrintedIndex + 1; i < contentLines.length; i++) {
+      if (contentLines[i] === undefined) {
+        continue;
+      }
+      res.write(contentLines[i] + "\n");
+    }
+
+    globalVars.TOTAL_TRANSLATED++;
+    appLog.success("Successfully processed /get-ass request", {
+      url,
+      lang,
+      totalTranslated: globalVars.TOTAL_TRANSLATED,
+      requestId,
+    });
+    res.end();
+  } catch (err) {
+    appLog.error("Error processing /get-ass request", {
+      msg: err.message,
+      url,
+      lang,
+      requestId,
+    });
+    console.error(`Error in request ${requestId}:`, err);
+    if (res.headersSent) {
+      res.write("\n\nERROR: Failed to process the request. " + err.message);
+      res.end();
+    } else {
+      res
+        .status(500)
+        .json({
+          error: "Failed to process the request, please check the URL file",
+          details: err.message,
+          requestId,
+        });
+    }
+  }
+});
+
 module.exports = router;

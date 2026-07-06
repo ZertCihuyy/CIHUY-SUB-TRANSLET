@@ -56,8 +56,16 @@
         <p>Jagonya Translate Subtitle Ngebut ⚡</p>
         
         <div class="input-wrapper">
-            <label>Link File VTT</label>
-            <input type="text" id="urlInput" placeholder="Tempel link VTT di sini...">
+            <label>Link File Subtitle</label>
+            <input type="text" id="urlInput" placeholder="Tempel link VTT / ASS di sini...">
+        </div>
+
+        <div class="input-wrapper">
+            <label>Format Subtitle</label>
+            <select id="formatInput">
+                <option value="vtt">VTT (.vtt)</option>
+                <option value="ass">ASS (.ass)</option>
+            </select>
         </div>
 
         <div class="input-wrapper">
@@ -84,10 +92,11 @@
         function start() {
             const url = document.getElementById('urlInput').value.trim();
             const lang = document.getElementById('langInput').value;
-            if(!url) return alert("Eits, link VTT-nya belum diisi bang!");
+            const format = document.getElementById('formatInput').value;
+            if(!url) return alert("Eits, link file-nya belum diisi bang!");
             
             // Langsung gas redirect
-            window.location.href = `/get-vtt?url=${encodeURIComponent(url)}&lang=${lang}`;
+            window.location.href = `/get-${format}?url=${encodeURIComponent(url)}&lang=${lang}`;
         }
     </script>
 </body>
