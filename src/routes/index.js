@@ -20,7 +20,9 @@ router.get("/", (req, res) => {
     `<option value="${code}">${name} : ${code}</option>`
   ).join('');
 
-  res.render("index", { langOptions, SOCIAL_LINKS });
+  let sourceLangOptions = `<option value="auto">Auto Detect : auto</option>` + langOptions;
+
+  res.render("index", { langOptions, sourceLangOptions, SOCIAL_LINKS });
 });
 
 // Show API info
@@ -63,7 +65,8 @@ router.get("/jumlah-terjemah", (req, res) => {
 // Main handler for translation requests
 router.get("/get-vtt", async (req, res) => {
   const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const { url, lang = "id" } = req.query;
+  const { url, lang = "id", sl = "auto", tl } = req.query;
+  const targetLang = tl || lang;
 
   // Validate required parameter
   if (!url) {
@@ -78,7 +81,8 @@ router.get("/get-vtt", async (req, res) => {
   // Append log
   appLog.info("Received /get-vtt request", {
     url,
-    lang,
+    sl,
+    targetLang,
     ip: req.ip,
     userAgent: req.get("User-Agent"),
     requestId,
@@ -184,7 +188,8 @@ router.get("/get-vtt", async (req, res) => {
     for (const chunk of chunks) {
       try {
         const responseTranslate = await translate(stripHtml(chunk.text), {
-          to: lang,
+          from: sl,
+          to: targetLang,
           client: "gtx",
           forceTo: true,
         });
@@ -239,7 +244,8 @@ router.get("/get-vtt", async (req, res) => {
     globalVars.TOTAL_TRANSLATED++;
     appLog.success("Successfully processed /get-vtt request", {
       url,
-      lang,
+      sl,
+      targetLang,
       totalTranslated: globalVars.TOTAL_TRANSLATED,
       requestId,
     });
@@ -248,7 +254,8 @@ router.get("/get-vtt", async (req, res) => {
     appLog.error("Error processing /get-vtt request", {
       msg: err.message,
       url,
-      lang,
+      sl,
+      targetLang,
       requestId,
     });
     console.error(`Error in request ${requestId}:`, err);
@@ -270,7 +277,8 @@ router.get("/get-vtt", async (req, res) => {
 // Main handler for ASS translation requests
 router.get("/get-ass", async (req, res) => {
   const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const { url, lang = "id" } = req.query;
+  const { url, lang = "id", sl = "auto", tl } = req.query;
+  const targetLang = tl || lang;
 
   // Validate required parameter
   if (!url) {
@@ -285,7 +293,8 @@ router.get("/get-ass", async (req, res) => {
   // Append log
   appLog.info("Received /get-ass request", {
     url,
-    lang,
+    sl,
+    targetLang,
     ip: req.ip,
     userAgent: req.get("User-Agent"),
     requestId,
@@ -370,7 +379,8 @@ router.get("/get-ass", async (req, res) => {
     for (const chunk of chunks) {
       try {
         const responseTranslate = await translate(chunk.text, {
-          to: lang,
+          from: sl,
+          to: targetLang,
           client: "gtx",
           forceTo: true,
         });
@@ -412,7 +422,8 @@ router.get("/get-ass", async (req, res) => {
     globalVars.TOTAL_TRANSLATED++;
     appLog.success("Successfully processed /get-ass request", {
       url,
-      lang,
+      sl,
+      targetLang,
       totalTranslated: globalVars.TOTAL_TRANSLATED,
       requestId,
     });
@@ -421,7 +432,8 @@ router.get("/get-ass", async (req, res) => {
     appLog.error("Error processing /get-ass request", {
       msg: err.message,
       url,
-      lang,
+      sl,
+      targetLang,
       requestId,
     });
     console.error(`Error in request ${requestId}:`, err);

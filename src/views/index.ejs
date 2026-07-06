@@ -47,6 +47,14 @@
         .socials { margin-top: 15px; display: flex; justify-content: center; gap: 15px; }
         .socials a { color: #888; font-size: 1.3rem; transition: 0.3s; }
         .socials a:hover { color: #00f2ff; transform: scale(1.1); }
+        
+        .contributors-box { margin-top: 25px; text-align: center; }
+        .contributors-box h3 { font-size: 0.9rem; color: #ddd; margin-bottom: 12px; }
+        .contributors-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+        .contributor { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #aaa; font-size: 0.75rem; transition: 0.3s; }
+        .contributor img { width: 36px; height: 36px; border-radius: 50%; border: 2px solid transparent; transition: 0.3s; margin-bottom: 5px; }
+        .contributor:hover img { border-color: #00f2ff; transform: scale(1.1); }
+        .contributor:hover { color: #fff; }
     </style>
 </head>
 <body>
@@ -68,12 +76,23 @@
             </select>
         </div>
 
-        <div class="input-wrapper">
-            <label>Mau Bahasa Apa?</label>
-            <select id="langInput"><%- langOptions %></select>
+        <div class="input-wrapper" style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+                <label>Dari Bahasa</label>
+                <select id="slInput"><%- sourceLangOptions %></select>
+            </div>
+            <div style="flex: 1;">
+                <label>Ke Bahasa</label>
+                <select id="tlInput"><%- langOptions %></select>
+            </div>
         </div>
 
         <button onclick="start()">GAS TERJEMAHKAN 🚀</button>
+
+        <div class="contributors-box" id="contributorsContainer" style="display: none;">
+            <h3>Contributors</h3>
+            <div class="contributors-list" id="contributorsList"></div>
+        </div>
 
         <div class="footer">
             <div class="credits">
@@ -91,13 +110,43 @@
     <script>
         function start() {
             const url = document.getElementById('urlInput').value.trim();
-            const lang = document.getElementById('langInput').value;
+            const sl = document.getElementById('slInput').value;
+            const tl = document.getElementById('tlInput').value;
             const format = document.getElementById('formatInput').value;
             if(!url) return alert("Eits, link file-nya belum diisi bang!");
             
             // Langsung gas redirect
-            window.location.href = `/get-${format}?url=${encodeURIComponent(url)}&lang=${lang}`;
+            window.location.href = `/get-${format}?url=${encodeURIComponent(url)}&sl=${sl}&tl=${tl}`;
         }
+
+        // Fetch contributors
+        async function loadContributors() {
+            try {
+                const res = await fetch('https://api.github.com/repos/ZertCihuyy/CIHUY-SUB-TRANSLET/contributors');
+                const contributors = await res.json();
+                if (contributors && Array.isArray(contributors) && contributors.length > 0) {
+                    const container = document.getElementById('contributorsContainer');
+                    const list = document.getElementById('contributorsList');
+                    container.style.display = 'block';
+                    contributors.forEach(c => {
+                        if(c.type === 'User') {
+                            const a = document.createElement('a');
+                            a.href = c.html_url;
+                            a.target = '_blank';
+                            a.className = 'contributor';
+                            a.title = c.login;
+                            a.innerHTML = `<img src="${c.avatar_url}" alt="${c.login}"><span>${c.login}</span>`;
+                            list.appendChild(a);
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to load contributors:", err);
+            }
+        }
+        
+        // Run on load
+        window.addEventListener('DOMContentLoaded', loadContributors);
     </script>
 </body>
 </html>
