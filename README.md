@@ -1,250 +1,134 @@
-# CIHUY-SUB-TRANSLET
+# CIHUY SUB TRANSLET (OP VERSION)
 
-CIHUY-SUB-TRANSLET adalah server berbasis **Node.js + Express** yang digunakan untuk menerjemahkan subtitle **VTT** secara otomatis menggunakan **google-translate-api-x**, dengan sistem **chunking** dan **streaming real-time** ke browser.
+![License: GPL v3](https://img.shields.io/badge/License-MIT-green.svg)
 
-Project ini dibuat untuk memudahkan proses translate subtitle tanpa merusak timestamp.
+Versi **OP (Overpowered)** dari API Terjemahan Subtitle.
+Semua "bloatware" (UI, Express, EJS, Cors, Axios, dan dependensi external lainnya) telah **DIBABAT HABIS**.
 
----
+API ini beroperasi 100% "Bare-Metal" menggunakan Native `Fetch API` langsung ke backend translasi. 
 
-## ✨ Fitur Utama
+> [!WARNING]
+> **API ini sangat ringan dan cepat. Jika Anda mengirim request dalam jumlah massif (ribuan baris tanpa henti) dari IP yang sama (Localhost), IP Anda mungkin terkena Rate-Limit (Block sementara).**
+> Solusi: Gunakan Cloudflare Workers (rekomendasi utama) karena request akan didistribusikan melalui ratusan IP Cloudflare!
 
-- 🔥 Translate subtitle VTT otomatis
-- ⚡ Streaming hasil terjemahan secara real-time
-- 🧩 Sistem chunking (aman dari limit Google Translate)
-- 🕒 Timestamp subtitle tetap utuh
-- 📊 Statistik & monitoring server
-- 🌐 UI web langsung dari server
-- 📝 Log request (max 100 log terakhir)
-
----
-
-## 🧑‍💻 Developer
-
-- **Nama**: ZertCihuy  
-- **GitHub**: https://github.com/ZertCihuyy  
+## 🔥 Fitur Utama (OP Features)
+- **Zero Dependencies**: Tidak butuh `google-translate-api-x` atau package npm apapun! (Ukuran super kecil).
+- **Subtitle Array Preservation**: Jika Anda mengirim Array berisi baris-baris subtitle (seperti srt/vtt), susunan baris dan tag (`<i>`, `<b>`) akan lebih terjaga kerena diproses batch secara unik.
+- **Support Cloudflare Workers**: Bisa dideploy langsung ke Cloudflare Workers hanya dengan *copy-paste* 1 file (`worker/index.js`).
+- **Support Local/VPS**: Terdapat file `local.js` bawaan untuk Anda jalankan via Node.js secara instan tanpa framework.
 
 ---
 
-## 🧰 Teknologi
+## 🚀 1. Cara Menjalankan di Lokal (Localhost/VPS)
 
-- Node.js
-- Express.js
-- Axios
-- CORS
-- google-translate-api-x
-- HTML + CSS (Inline UI)
-
----
-
-## ⚙️ Konfigurasi
-
-```js
-PORT = 3000
-MAX_CHARS = 2000
-DELIMITER = " ||| "
-MAX_LOG_SIZE = 100
-````
-
----
-
-## 🚀 Cara Menjalankan
-
-### 1. Install Dependency
-
+Pastikan Anda menggunakan Node.js v18 ke atas.
 ```bash
-npm install express cors axios google-translate-api-x
+# Masuk ke folder proyek
+cd CIHUY-SUB-TRANSLET
+
+# Jalankan server
+npm start
+# ATAU
+node local.js
 ```
+Server akan menyala di `http://localhost:3000`.
 
-### 2. Jalankan Server
+---
 
+## ☁️ 2. Cara Menjalankan di Cloudflare Workers (Tanpa Wrangler)
+
+Kabar gembira, Anda tidak perlu menginstall Wrangler atau build tools apapun! File Worker sudah dirancang untuk langsung siap pakai (Copy-Paste).
+
+1. Buka folder `src/` dan salin (copy) SELURUH isi dari file `index.js`.
+2. Login ke [Dashboard Cloudflare](https://dash.cloudflare.com/) > **Workers & Pages**.
+3. Klik **Create Application** > **Create Worker**.
+4. Beri nama worker (misal: `cihuy-sub-api`).
+5. Klik **Edit code**, Hapus semua kode bawaan, lalu **PASTE** kode dari `index.js` yang tadi disalin.
+6. Klik **Deploy**! (Selesai).
+
+---
+
+## 💻 Dokumentasi Endpoint API
+
+API ini tidak memiliki UI (Sesuai dengan standard OP Backend). Akses murni via HTTP Request.
+
+### `POST /translate`
+
+**1. Translate Text Biasa (String)**
 ```bash
-node server.js
+curl -X POST http://localhost:3000/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello world, this is OP", "to": "id"}'
 ```
 
-### 3. Buka Browser
-
-```text
-http://localhost:3000
+**2. Translate Subtitle Batch (Array)**
+*(Sangat disarankan untuk subtitle agar line tidak berantakan)*
+```bash
+curl -X POST http://localhost:3000/translate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": [
+      "Hello!",
+      "<i>How are you doing today?</i>",
+      "Welcome to the show."
+    ], 
+    "to": "id"
+  }'
 ```
 
----
-
-## 🌐 Route Frontend
-
-### GET `/`
-
-Menampilkan UI web untuk:
-
-* Input link subtitle VTT
-* Pilih bahasa tujuan
-* Proses translate otomatis
-
-Bahasa yang didukung:
-
-* Indonesia (`id`)
-* Jawa (`jw`)
-* Sunda (`su`)
-* Inggris (`en`)
-* Melayu (`ms`)
-* Korea (`ko`)
-* Arab (`ar`)
-* Spanyol (`es`)
-* Prancis (`fr`)
-* Jerman (`de`)
-* Rusia (`ru`)
-* Thailand (`th`)
-* Vietnam (`vi`)
-
----
-
-## 🔌 Route API & Informasi
-
-### GET `/log`
-
-Menampilkan log request terakhir.
-
-**Response**
-
+**Response Format:**
 ```json
 {
-  "total_logs": 10,
-  "logs": []
+  "status": "success",
+  "source_lang": "en",
+  "target_lang": "id",
+  "translated_data": [
+    "Halo!",
+    "<i>Bagaimana kabarmu hari ini?</i>",
+    "Selamat datang di pertunjukan."
+  ]
 }
 ```
 
----
+**Parameter Body:**
+- `text` *(Wajib)* : Bisa berupa string kalimat tunggal, atau array string untuk banyak kalimat (batch/subtitle).
+- `to` *(Opsional)* : Kode bahasa tujuan (contoh: `id` untuk Indonesia). Default: `en`.
+- `from` *(Opsional)* : Kode bahasa asal. Biarkan `auto` jika ingin deteksi otomatis. Default: `auto`.
 
-### GET `/status`
+### `POST /translate-subtitle`
+**(Fitur Spesial OP: Translate File Subtitle Utuh)**
+Anda dapat mengirimkan isi file subtitle (VTT, SRT, atau ASS) secara utuh. API akan membongkar (parsing) file tersebut, menerjemahkan bagian dialognya secara *batch* agar sangat cepat, lalu merakitnya kembali ke format semula tanpa merusak *timestamp* atau baris konfigurasi!
 
-Cek status server.
+**Contoh Request (VTT/SRT):**
+```bash
+curl -X POST http://localhost:3000/translate-subtitle \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "vtt",
+    "content": "WEBVTT\n\n00:01.000 --> 00:04.000\nHello world!\n\n00:05.000 --> 00:09.000\nWelcome home.",
+    "to": "id"
+  }'
+```
 
-**Response**
-
+**Response:**
 ```json
 {
-  "status": "Online 🟢",
-  "uptime": "120 detik",
-  "memory_usage": "45 MB",
-  "timestamp": "2026-02-08T00:00:00Z"
+  "status": "success",
+  "translated_file": "WEBVTT\n\n00:01.000 --> 00:04.000\nHalo Dunia!\n\n00:05.000 --> 00:09.000\nSelamat datang di rumah."
 }
 ```
 
----
+*Tipe file yang didukung untuk `type`: `srt`, `vtt`, `ass`.*
 
-### GET `/jumlah-terjemah`
+### `GET /get-vtt`, `GET /get-srt`, `GET /get-ass`
+**(Fitur Spesial OP: Proxy Translate URL Langsung)**
+Jika Anda memiliki link subtitle mentah (misal dari server lain), Anda bisa menggunakan endpoint GET ini untuk langsung mendownload, menerjemahkan, dan mengembalikan file jadinya. Sangat cocok dipasang langsung ke Web Video Player!
 
-Menampilkan total subtitle yang berhasil diterjemahkan.
-
-```json
-{
-  "total_terjemahan_sukses": 25
-}
+**Contoh:**
+```html
+<track kind="subtitles" src="http://localhost:3000/get-vtt?url=https://domain.com/sub.vtt&to=id" srclang="id" label="Indonesia">
 ```
 
-Alias:
-
-* `/Jumlah-terjema`
-
----
-
-### GET `/power`
-
-Menampilkan engine translator.
-
-```
-google-translate-api-x
-```
-
----
-
-### GET `/developer`
-
-Menampilkan nama developer.
-
-```
-ZertCihuy
-```
-
----
-
-## 🧠 Route Utama (Translate Engine)
-
-### GET `/get-vtt`
-
-#### Parameter
-
-| Nama | Wajib | Deskripsi                     |
-| ---- | ----- | ----------------------------- |
-| url  | ✅     | Link file `.vtt`              |
-| lang | ❌     | Bahasa tujuan (default: `id`) |
-
-#### Contoh Request
-
-```
-/get-vtt?url=https://example.com/sub.vtt&lang=id
-```
-
----
-
-## 🔄 Alur Proses Translate
-
-1. Fetch file VTT via Axios
-2. Pisahkan per baris
-3. Deteksi dialog (tanpa timestamp)
-4. Gabungkan dialog ke chunk (max 2000 karakter)
-5. Translate per chunk
-6. Pisahkan hasil translate
-7. Kembalikan ke baris asli
-8. Streaming hasil ke browser
-9. Delay random (200–700 ms)
-10. Update counter sukses
-
----
-
-## ⚠️ Error Handling
-
-* Semua error dicatat ke sistem log
-* Output error tetap dikirim ke browser
-* Timeout fetch: **30 detik**
-
----
-
-## 🔐 Keamanan & Batasan
-
-* Tidak menyimpan subtitle
-* Tidak ada autentikasi
-* Bergantung pada Google Translate
-* Tidak disarankan untuk traffic besar
-
----
-
-## ☕ Support
-
-Jika project ini membantu kamu, bisa support di:
-
-* [https://sociabuzz.com/zerty_/tribe](https://sociabuzz.com/zerty_/tribe)
-
----
-
-## 📜 Lisensi & Kredit
-
-Powered by:
-**google-translate-api-x**
-
-Developed by:
-**ZertCihuy**
-
----
-
-## ⭐ Catatan
-
-Project ini cocok untuk:
-
-* Subtitle komunitas
-* Tools personal
-* Eksperimen subtitle streaming
-
-Tidak disarankan untuk penggunaan komersial skala besar.
-
----
-
+- Endpoint yang tersedia: `/get-vtt`, `/get-srt`, `/get-ass`
+- Parameter Query: `url` (wajib), `to` (opsional, default: id), `from` (opsional, default: auto).
+- Response: Raw Subtitle File (Bukan JSON).
