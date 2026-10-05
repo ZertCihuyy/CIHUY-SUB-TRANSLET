@@ -120,7 +120,7 @@ curl -X POST http://localhost:3000/translate-subtitle \
 
 *Tipe file yang didukung untuk `type`: `srt`, `vtt`, `ass`.*
 
-### `GET /get-vtt`, `GET /get-srt`, `GET /get-ass`
+### `GET /get-vtt`
 **(Fitur Spesial OP: Proxy Translate URL Langsung)**
 Jika Anda memiliki link subtitle mentah (misal dari server lain), Anda bisa menggunakan endpoint GET ini untuk langsung mendownload, menerjemahkan, dan mengembalikan file jadinya. Sangat cocok dipasang langsung ke Web Video Player!
 
@@ -129,6 +129,30 @@ Jika Anda memiliki link subtitle mentah (misal dari server lain), Anda bisa meng
 <track kind="subtitles" src="http://localhost:3000/get-vtt?url=https://domain.com/sub.vtt&to=id" srclang="id" label="Indonesia">
 ```
 
-- Endpoint yang tersedia: `/get-vtt`, `/get-srt`, `/get-ass`
-- Parameter Query: `url` (wajib), `to` (opsional, default: id), `from` (opsional, default: auto).
+- Endpoint yang tersedia: `/get-vtt` (Otomatis mendeteksi file VTT/SRT/ASS)
+- Parameter Query: `url` (wajib), `lang` (opsional, default: id), `from` (opsional, default: auto).
 - Response: Raw Subtitle File (Bukan JSON).
+
+---
+
+## 📊 Dukungan, Keamanan & Saran
+
+Berikut adalah matriks kemampuan dari API OP ini:
+
+| Kategori / Skenario | Status | Keterangan |
+| :--- | :---: | :--- |
+| **Cloudflare Workers Deployment** | ✅ | Sangat direkomendasikan karena Request IP akan didistribusikan secara acak (Aman dari block). |
+| **Subtitle VTT & SRT & ASS** | ✅ | Didukung penuh! Auto-detect dan parser sudah *built-in*. |
+| **Text-to-Speech (TTS)** | ✅ | Mendukung konversi teks ke Audio Base64 via `/speak`. |
+| **Penggunaan Localhost (Massif)** | ⚠️ | Hati-hati. Jika menerjemahkan puluhan ribu baris beruntun dari 1 IP lokal, bisa kena Rate-Limit. |
+| **Simpan File di Server (Storage)** | ❌ | Tidak menyimpan file apapun. Memori diproses *On-The-Fly* murni (Bare-Metal). |
+| **Sistem Autentikasi / API Key** | ❌ | Tidak tersedia secara bawaan agar script tetap *Overpowered* dan se-ringan mungkin. |
+| **Penggunaan Komersial Skala Besar** | ❌ | Karena menggunakan jalur API publik gratisan, tidak disarankan untuk aplikasi komersial ber-traffic raksasa. |
+
+---
+
+## ☕ Support Developer
+
+Jika project OP ini membantu produktivitas atau web streaming kamu, jangan ragu untuk support!
+* **Tribe:** [https://sociabuzz.com/zerty_/tribe](https://sociabuzz.com/zerty_/tribe)
+* **GitHub:** [ZertCihuyy](https://github.com/ZertCihuyy)
