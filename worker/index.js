@@ -12,42 +12,73 @@ export default {
       });
     }
 
-    async function translateText(sourceText, from, to) {
-      const params = new URLSearchParams();
-      params.append('sl', from);
-      params.append('tl', to);
-      params.append('q', sourceText);
+    
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-      const gtRes = await fetch('https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&dt=t', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-        },
-        body: params.toString()
-      });
+    async function translateTextWithRetry(sourceText, from, to, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const params = new URLSearchParams();
+          params.append('sl', from);
+          params.append('tl', to);
+          params.append('q', sourceText);
 
-      if (!gtRes.ok) throw new Error(`Google API Error: ${gtRes.status}`);
-      const json = await gtRes.json();
-      let translatedText = '';
-      if (json[0] && Array.isArray(json[0])) {
-        json[0].forEach(part => { if (part[0]) translatedText += part[0]; });
+          const gtRes = await fetch('https://translate.googleapis.com/translate_a/single?client=dict-chrome-ex&dt=t', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            },
+            body: params.toString()
+          });
+
+          if (!gtRes.ok) throw new Error(`Google API Error: ${gtRes.status}`);
+          
+          const json = await gtRes.json();
+          let translatedText = '';
+          if (json[0] && Array.isArray(json[0])) {
+            json[0].forEach(part => { if (part[0]) translatedText += part[0]; });
+          }
+          return { translatedText, detectedLang: json[2] || from };
+        } catch (err) {
+          if (i === retries - 1) throw err;
+          await sleep(1500 * (i + 1)); // Exponential backoff on retry
+        }
       }
-      return { translatedText, detectedLang: json[2] || from };
     }
 
     async function translateArrayOP(array, from, to) {
       const SEPARATOR = '\n\n';
-      const CHUNK_SIZE = 50; 
+      const MAX_CHARS = 2500;
+      
       const batches = [];
-      for (let i = 0; i < array.length; i += CHUNK_SIZE) batches.push(array.slice(i, i + CHUNK_SIZE));
+      let currentBatch = [];
+      let currentLength = 0;
+
+      for (const text of array) {
+        if (currentLength + text.length > MAX_CHARS && currentBatch.length > 0) {
+          batches.push(currentBatch);
+          currentBatch = [];
+          currentLength = 0;
+        }
+        currentBatch.push(text);
+        currentLength += text.length + SEPARATOR.length;
+      }
+      if (currentBatch.length > 0) batches.push(currentBatch);
 
       const results = [];
-      for (const batch of batches) {
-        const sourceText = batch.join(SEPARATOR);
-        const res = await translateText(sourceText, from, to);
+      for (let i = 0; i < batches.length; i++) {
+        const sourceText = batches[i].join(SEPARATOR);
+        
+        const res = await translateTextWithRetry(sourceText, from, to);
         const splitted = res.translatedText.split(SEPARATOR).map(s => s.trim());
         results.push(...splitted);
+        
+        // Add random delay between batches (300ms to 700ms) to avoid Rate Limiting (429)
+        if (i < batches.length - 1) {
+          const delay = Math.floor(Math.random() * 400) + 300;
+          await sleep(delay);
+        }
       }
       return { results };
     }
@@ -56,7 +87,7 @@ export default {
       let items = [];
       let parsedContent = content.replace(/\r\n/g, '\n');
 
-      if (type === 'srt' || type === 'vtt') {
+      if (type === 'srt' || type === 'vtt' || type === 'auto') {
         const blocks = parsedContent.split(/\n{2,}/);
         blocks.forEach((block, idx) => {
           const lines = block.split('\n');
@@ -75,6 +106,12 @@ export default {
             });
           }
         });
+        
+        // If it didn't find any VTT/SRT timestamps, it might be ASS
+        if (items.length === 0 && parsedContent.includes('Dialogue:')) {
+           return processSubtitle(content, 'ass', from, to);
+        }
+
         const textsToTranslate = items.map(i => i.text);
         const { results } = await translateArrayOP(textsToTranslate, from, to);
         results.forEach((translated, idx) => { if (items[idx]) items[idx].updateFn(translated); });
@@ -99,16 +136,16 @@ export default {
         results.forEach((translated, idx) => { if (items[idx]) items[idx].updateFn(translated); });
         return lines.join('\n');
       }
-      throw new Error("Unsupported type");
+      return content;
     }
 
-    // New OP Feature: Remote Fetch & Translate via GET
-    if ((url.pathname.startsWith('/get-vtt') || url.pathname.startsWith('/get-srt') || url.pathname.startsWith('/get-ass')) && request.method === 'GET') {
+    // Classic GET /get-vtt endpoint backwards compatibility
+    if (url.pathname === '/get-vtt' && request.method === 'GET') {
       try {
         const targetUrl = url.searchParams.get('url');
         const from = url.searchParams.get('from') || 'auto';
-        const to = url.searchParams.get('to') || 'id';
-        const type = url.pathname.replace('/get-', ''); // vtt, srt, ass
+        // support both 'lang' and 'to'
+        const to = url.searchParams.get('lang') || url.searchParams.get('to') || 'id';
         
         if (!targetUrl) return new Response("Missing ?url= parameter", { status: 400 });
 
@@ -116,13 +153,15 @@ export default {
         if (!subRes.ok) throw new Error("Failed to fetch subtitle from remote URL");
         
         const rawContent = await subRes.text();
+        // Auto detect type
+        let type = 'vtt';
+        if (rawContent.includes('Dialogue:')) type = 'ass';
+
         const translatedContent = await processSubtitle(rawContent, type, from, to);
 
-        // Return as raw text so video players can use it directly
-        const contentType = type === 'vtt' ? 'text/vtt' : 'text/plain';
         return new Response(translatedContent, {
           headers: { 
-            'Content-Type': `${contentType}; charset=utf-8`,
+            'Content-Type': `text/plain; charset=utf-8`,
             'Access-Control-Allow-Origin': '*'
           }
         });
@@ -135,7 +174,7 @@ export default {
     if (url.pathname === '/translate-subtitle' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const { content, type = 'srt', from = 'auto', to = 'id' } = body;
+        const { content, type = 'vtt', from = 'auto', to = 'id' } = body;
         if (!content) return new Response(JSON.stringify({ error: "Missing 'content'" }), { status: 400 });
 
         const translatedContent = await processSubtitle(content, type, from, to);
